@@ -41,7 +41,7 @@ describe('view mixin', function() {
 
       this.view = new Marionette.View();
 
-      sinon.spy(this.view, '_removeElement');
+      sinon.spy(this.view, 'removeEl');
       sinon.spy(this.view, 'destroy');
 
       this.onDestroyStub = sinon.stub();
@@ -64,7 +64,7 @@ describe('view mixin', function() {
     });
 
     it('should remove the view', function() {
-      expect(this.view._removeElement).to.have.been.calledOnce;
+      expect(this.view.removeEl).to.have.been.calledOnce;
     });
 
     it('should set the view _isDestroyed to true', function() {
@@ -105,7 +105,7 @@ describe('view mixin', function() {
     beforeEach(function() {
       this.view = new Marionette.View();
 
-      this.removeSpy = sinon.spy(this.view, '_removeElement');
+      this.removeSpy = sinon.spy(this.view, 'removeEl');
 
       this.destroyStub = sinon.stub();
       this.view.on('destroy', this.destroyStub);
@@ -136,7 +136,7 @@ describe('view mixin', function() {
 
       this.view = new Marionette.View();
 
-      this.removeSpy = sinon.spy(this.view, '_removeElement');
+      this.removeSpy = sinon.spy(this.view, 'removeEl');
 
       this.destroyStub = sinon.stub();
       this.view.on('destroy', this.destroyStub);
@@ -236,7 +236,7 @@ describe('view mixin', function() {
     beforeEach(function() {
       this.view = new Marionette.View();
 
-      this.removeSpy = sinon.spy(this.view, '_removeElement');
+      this.removeSpy = sinon.spy(this.view, 'removeEl');
       this.destroyStub = sinon.stub();
       this.view.on('destroy', this.destroyStub);
 
@@ -294,7 +294,7 @@ describe('view mixin', function() {
       });
 
       this.ChildView = Marionette.View.extend({
-        template: false
+        template: _.noop
       });
 
       this.SuperView = Marionette.View.extend({
@@ -413,6 +413,23 @@ describe('view mixin', function() {
 
       it('should not emit the event on the layout', function() {
         expect(this.layoutEventHandler).not.to.have.been.called;
+      });
+    });
+
+    describe('when childViewEventPrefix flag is false', function() {
+      let myView;
+
+      beforeEach(function() {
+        Marionette.setEnabled('childViewEventPrefix', false);
+        myView = new Marionette.View();
+      });
+
+      afterEach(function() {
+        Marionette.setEnabled('childViewEventPrefix', true);
+      });
+
+      it('should set childViewEventPrefix to false', function() {
+        expect(_.result(myView, 'childViewEventPrefix')).to.be.false;
       });
     });
   });

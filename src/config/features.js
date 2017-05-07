@@ -1,6 +1,9 @@
 // Add Feature flags here
 // e.g. 'class' => false
 const FEATURES = {
+  childViewEventPrefix: true,
+  triggersStopPropagation: true,
+  triggersPreventDefault: true
 };
 
 function isEnabled(name) {

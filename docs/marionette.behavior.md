@@ -232,6 +232,28 @@ var ToolTip = Mn.Behavior.extend({
 ```
 
 #### Behavior Defaults
+
+**Deprecated:** Defaults can be effectively set with an `options` hash defined on the Behavior.
+
+```javascript
+Marionette.Behavior.extend({
+  options: function() {
+    return {
+      deepSpace: 9
+    }
+  }
+});
+```
+
+```javascript
+Marionette.Behavior.extend({
+  options: {
+    dominion: 'invasion',
+    doge: 'amaze'
+  }
+});
+```
+
 `defaults` can be a [`hash` or `function`](./basics.md#functions-returning-values) to define the default options for your `Behavior`. The default options will be overridden depending on what you set as the options per `Behavior`. (This works just like a `Backbone.Model`.)
 
 ```javascript
@@ -332,9 +354,11 @@ The View + Behavior initialize process is as follows:
 2. Behavior is constructed
 3. Behavior is initialized with view property set
 4. View is initialized
+5. View triggers an `initialize` event on the behavior.
 
 This means that the behavior can access the view during its own `initialize` method.
 The view `initialize` is called later with the information eventually injected by the behavior.
+The `initialize` event is triggered on the behavior indicating that the view is fully initialized.
 
 [Live example](https://jsfiddle.net/marionettejs/qb9go1y3/)
 

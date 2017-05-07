@@ -3,6 +3,7 @@
 
 import _ from 'underscore';
 import Backbone from 'backbone';
+import deprecate from './utils/deprecate';
 import isNodeAttached from './common/is-node-attached';
 import monitorViewEvents from './common/monitor-view-events';
 import ViewMixin from './mixins/view';
@@ -46,6 +47,8 @@ const View = Backbone.View.extend({
     Backbone.View.prototype.constructor.apply(this, args);
 
     this.delegateEntityEvents();
+
+    this._triggerEventOnBehaviors('initialize', this);
   },
 
   // Serialize the view's model *or* collection, if
@@ -111,7 +114,7 @@ const View = Backbone.View.extend({
   // Subsequent renders after the first will re-render all nested
   // views.
   render() {
-    this._ensureViewIsIntact();
+    if (this._isDestroyed) { return this; }
 
     this.triggerMethod('before:render', this);
 
@@ -137,6 +140,7 @@ const View = Backbone.View.extend({
 
     // Allow template-less views
     if (template === false) {
+      deprecate('template:false is deprecated.  Use _.noop.');
       return;
     }
 
@@ -144,8 +148,13 @@ const View = Backbone.View.extend({
     const data = this.mixinTemplateContext(this.serializeData());
 
     // Render and add to el
-    const html = Renderer.render(template, data, this);
+    const html = this._renderHtml(template, data);
     this.attachElContent(html);
+  },
+
+  // Renders the data into the template
+  _renderHtml(template, data) {
+    return Renderer.render(template, data, this);
   },
 
   // Get the template for this view
@@ -179,7 +188,7 @@ const View = Backbone.View.extend({
   // }
   // ```
   attachElContent(html) {
-    this.$el.html(html);
+    this.setInnerContent(this.el, html);
 
     return this;
   },
@@ -190,10 +199,15 @@ const View = Backbone.View.extend({
   },
 
   _getImmediateChildren() {
-    return _.chain(this.getRegions())
+    return _.chain(this._getRegions())
       .map('currentView')
       .compact()
       .value();
+  }
+}, {
+  // Sets the renderer for the Marionette.View class
+  setRenderer(renderer) {
+    this.prototype._renderHtml = renderer;
   }
 });
 

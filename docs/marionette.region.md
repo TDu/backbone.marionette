@@ -25,11 +25,16 @@ Regions maintain the [View's lifecycle](./viewlifecycle.md#regions-and-the-view-
 * [Using Regions on a view](#using-regions-on-a-view)
 * [Showing a View](#showing-a-view)
   * [Checking whether a region is showing a view](#checking-whether-a-region-is-showing-a-view)
+  * [Non-Marionette Views](#non-marionette-views)
+    * [Partially-rendered Views](#partially-rendered-views)
+* [Showing a Template](#showing-a-template)
 * [Emptying a Region](#emptying-a-region)
   * [Preserving Existing Views](#preserving-existing-views)
   * [Detaching Existing Views](#detaching-existing-views)
 * [`reset` A Region](#reset-a-region)
+* [Check If View Is Being Swapped By Another](#check-if-view-is-being-swapped-by-another)
 * [Set How View's `el` Is Attached](#set-how-views-el-is-attached)
+* [Configure How To Remove View](#configure-how-to-remove-view)
 
 ## Defining the Application Region
 
@@ -260,7 +265,9 @@ In addition to adding and removing regions there are a few
 methods to help utilize regions.
 
 - `getRegion(name)` - Request a region from a view by name.
+ - Note: If the view hasn't been rendered at this point, it will be.
 - `getRegions()` - Returns an object literal of all regions on the view organized by name.
+ - Note: If the view hasn't been rendered at this point, it will be.
 - `hasRegion(name)` - Check if a view has a region.
 - `emptyRegions()` - Empty all of the regions on a view.
 
@@ -310,6 +317,92 @@ mainRegion.hasView() // true
 
 If you show a view in a region with an existing view, Marionette will
 [remove the existing View](#emptying-a-region) before showing the new one.
+
+### Non-Marionette Views
+
+Marionette Regions aren't just for showing Marionette Views - they can also
+display instances of regular [`Backbone.View`](http://backbonejs.org/#View).
+To do this, ensure your view defines a `render()` method and just treat it like
+a regular Marionette View:
+
+```javascript
+var Bb = require('backbone');
+var Mn = require('backbone.marionette');
+var _ = require('underscore');
+
+var MyChildView = Bb.View.extend({
+  render: function() {
+    this.$el.append('<p>Some text</p>');
+  },
+
+  onRender: function() {
+    console.log('Regions also fire Lifecycle events on Backbone.View!');
+  }
+});
+
+var MyParentView = Mn.View.extend({
+  regions: {
+    child: '.child-view'
+  },
+
+  template: _.template('<div class="child-view"></div>'),
+
+  onRender: function() {
+    this.showChildView('child', new MyChildView());
+  }
+});
+```
+
+As you can see above, you can listen to [Lifecycle Events](./viewlifecycle.md)
+on `Backbone.View` and Marionette will fire the events for you.
+
+#### Partially-rendered Views
+
+Some libraries will partially "render" a view by setting their `$el`. This can
+cause issues with Marionette assuming it's already been rendered. To get around
+this, you must manually call `render` before showing the view:
+
+```javascript
+var MyParentView = Mn.View.extend({
+  regions: {
+    child: '.child-view'
+  },
+
+  template: _.template('<div class="child-view"></div>'),
+
+  onRender: function() {
+    var backgridView = new BackgridView({collection: myCollection});
+    backgridView.render();
+    this.showChildView('child', backgridView);
+  }
+});
+```
+
+Libraries that are known to exhibit this behavior are:
+
+* [Backgrid 0.3.7](http://backgridjs.com)
+
+This behavior is part of [`Marionette.View#setElement()`](./marionette.view.md).
+
+## Showing a Template
+
+You can show a template or a string directly into a region. Additionally you can pass an object literal containing a template and any other view options. Under the hood a `Marionette.View` is instantiated using the template.
+
+```javascript
+var myView = new MyView();
+
+var template = _.template('This is the <%- section %> page');
+var templateContext = templateContext: { section: 'main' };
+
+myView.showChildView('main', {
+  template: template,
+  templateContext: templateContext
+});
+
+myView.showChildView('header', _.template('Welcome to the site'));
+
+myView.getRegion('other').show('This text is in another region');
+```
 
 ## Emptying a Region
 
@@ -400,6 +493,26 @@ myRegion.reset();
 
 This can be useful in unit testing your views.
 
+## Check If View Is Being Swapped By Another
+
+The `isSwappingView` method returns if a view is being swapped by another one. It's useful
+inside region lifecycle events / methods.
+
+The example will show an message when the region is empty:
+
+```javascript
+var Mn = require('backbone.marionette');
+
+var EmptyMsgRegion = Mn.Region.extend({
+  onEmpty() {
+    if (!this.isSwappingView()) {
+      this.$el.append('Empty Region');
+    }
+  }
+});
+```
+[Live example](https://jsfiddle.net/marionettejs/c1nacq0c/1/)
+
 ## Set How View's `el` Is Attached
 
 Override the region's `attachHtml` method to change how the view is attached
@@ -442,3 +555,60 @@ var MyView = Mn.View.extend({
   }
 });
 ```
+
+## Configure How To Remove View
+
+Override the region's `removeView` method to change how and when the view is destroyed / removed
+from the DOM. This method receives one parameter - the view to remove.
+
+The default implementation of `removeView` is:
+
+```javascript
+var Mn = require('backbone.marionette');
+
+Mn.Region.prototype.removeView = function(view){
+  this.destroyView(view);
+}
+```
+
+> `destroyView` method destroys the view taking into consideration if is
+> a Marionette.View descendant or vanilla Backbone view. It can be replaced
+> by a `view.destroy()` call if is ensured that view descends from Marionette.View
+
+This example will animate with a fade effect showing and hiding the view:
+
+```javascript
+var Mn = require('backbone.marionette');
+
+var AnimatedRegion = Mn.Region.extend({
+  attachHtml(view) {
+    view.$el
+      .css({display: 'none'})
+      .appendTo(this.$el);
+    if (!this.isSwappingView()) view.$el.fadeIn('slow');
+  },
+
+  removeView(view) {
+    var self = this;
+    view.$el.fadeOut('slow', function() {
+      self.destroyView(view);
+      if (self.currentView) self.currentView.$el.fadeIn('slow');
+    });
+  }
+});
+
+var MyView = Mn.View.extend({
+  regions: {
+    animatedRegion: {
+      regionClass: AnimatedRegion,
+      el: '#animated-region'
+    }
+  }
+});
+```
+
+[Live example](https://jsfiddle.net/marionettejs/c1nacq0c/3/)
+
+Using a similar approach is possible to create a region animated with CSS:
+
+[Live example](https://jsfiddle.net/marionettejs/9ys4d57x/2/)

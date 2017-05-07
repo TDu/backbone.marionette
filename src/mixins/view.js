@@ -7,10 +7,10 @@ import { triggerMethod } from '../common/trigger-method';
 import BehaviorsMixin from './behaviors';
 import CommonMixin from './common';
 import DelegateEntityEventsMixin from './delegate-entity-events';
+import DomMixin from './dom';
 import TriggersMixin from './triggers';
 import UIMixin from './ui';
-import View from '../view';
-import MarionetteError from '../error';
+import { isEnabled } from '../config/features';
 
 // MixinOptions
 // - behaviors
@@ -113,16 +113,6 @@ const ViewMixin = {
     return this;
   },
 
-  // Internal helper method to verify whether the view hasn't been destroyed
-  _ensureViewIsIntact() {
-    if (this._isDestroyed) {
-      throw new MarionetteError({
-        name: 'ViewDestroyedError',
-        message: `View (cid: "${this.cid}") has already been destroyed and cannot be used.`
-      });
-    }
-  },
-
   // Handle destroying the view and its children.
   destroy(...args) {
     if (this._isDestroyed) { return this; }
@@ -137,8 +127,7 @@ const ViewMixin = {
     this.unbindUIElements();
 
     // remove the view from the DOM
-    // https://github.com/jashkenas/backbone/blob/1.2.3/backbone.js#L1235
-    this._removeElement();
+    this.removeEl(this.el);
 
     if (shouldTriggerDetach) {
       this._isAttached = false;
@@ -148,10 +137,12 @@ const ViewMixin = {
     // remove children after the remove to prevent extra paints
     this._removeChildren();
 
-    this._destroyBehaviors(args);
-
     this._isDestroyed = true;
     this._isRendered = false;
+
+    // Destroy behaviors after _isDestroyed flag
+    this._destroyBehaviors(...args);
+
     this.triggerMethod('destroy', this, ...args);
 
     this.stopListening();
@@ -175,13 +166,14 @@ const ViewMixin = {
   },
 
   getUI(name) {
-    this._ensureViewIsIntact();
     return this._getUI(name);
   },
 
   // used as the prefix for child view events
   // that are forwarded through the layoutview
-  childViewEventPrefix: 'childview',
+  childViewEventPrefix() {
+    return isEnabled('childViewEventPrefix') ? 'childview' : false;
+  },
 
   // import the `triggerMethod` to trigger events with corresponding
   // methods if the method exists
@@ -189,7 +181,6 @@ const ViewMixin = {
     const ret = triggerMethod.apply(this, arguments);
 
     this._triggerEventOnBehaviors.apply(this, arguments);
-    this._triggerEventOnParentLayout.apply(this, arguments);
 
     return ret;
   },
@@ -200,26 +191,8 @@ const ViewMixin = {
     this._childViewTriggers = _.result(this, 'childViewTriggers');
   },
 
-  _triggerEventOnParentLayout() {
-    const layoutView = this._parentView();
-    if (!layoutView) {
-      return;
-    }
-
-    layoutView._childViewEventHandler.apply(layoutView, arguments);
-  },
-
-  // Walk the _parent tree until we find a view (if one exists).
-  // Returns the parent view hierarchically closest to this view.
-  _parentView() {
-    let parent = this._parent;
-
-    while (parent) {
-      if (parent instanceof View) {
-        return parent;
-      }
-      parent = parent._parent;
-    }
+  _proxyChildViewEvents(view) {
+    this.listenTo(view, 'all', this._childViewEventHandler);
   },
 
   _childViewEventHandler(eventName, ...args) {
@@ -248,6 +221,6 @@ const ViewMixin = {
   }
 };
 
-_.extend(ViewMixin, BehaviorsMixin, CommonMixin, DelegateEntityEventsMixin, TriggersMixin, UIMixin);
+_.extend(ViewMixin, DomMixin, BehaviorsMixin, CommonMixin, DelegateEntityEventsMixin, TriggersMixin, UIMixin);
 
 export default ViewMixin;

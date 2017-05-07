@@ -68,7 +68,8 @@ export default {
   _addRegion(region, name) {
     this.triggerMethod('before:add:region', this, name, region);
 
-    region._parent = this;
+    region._parentView = this;
+    region._name = name;
 
     this._regions[name] = region;
 
@@ -86,7 +87,7 @@ export default {
 
   // Remove all regions from the View
   removeRegions() {
-    const regions = this.getRegions();
+    const regions = this._getRegions();
 
     _.each(this._regions, _.bind(this._removeRegion, this));
 
@@ -98,10 +99,13 @@ export default {
 
     region.destroy();
 
+    this.triggerMethod('remove:region', this, name, region);
+  },
+
+  // Called in a region's destroy
+  _removeReferences(name) {
     delete this.regions[name];
     delete this._regions[name];
-
-    this.triggerMethod('remove:region', this, name, region);
   },
 
   // Empty all regions in the region manager, but
@@ -123,12 +127,22 @@ export default {
   // Accepts the region name
   // getRegion('main')
   getRegion(name) {
+    if (!this._isRendered) {
+      this.render();
+    }
     return this._regions[name];
   },
 
   // Get all regions
-  getRegions() {
+  _getRegions() {
     return _.clone(this._regions);
+  },
+
+  getRegions() {
+    if (!this._isRendered) {
+      this.render();
+    }
+    return this._getRegions();
   },
 
   showChildView(name, view, ...args) {

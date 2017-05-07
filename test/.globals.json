@@ -8,6 +8,7 @@
     "_": true,
     "Backbone": true,
     "Marionette": true,
-    "ChildViewContainer": true
+    "Cypress": true,
+    "cy": true
   }
 }

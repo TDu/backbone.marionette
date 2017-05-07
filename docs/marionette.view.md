@@ -34,6 +34,7 @@ multiple views through the `regions` attribute.
     * [Event and Trigger Mapping](#event-and-trigger-mapping)
     * [View `events`](#view-events)
     * [View `triggers`](#view-triggers)
+    * [View `triggers` Event Object](#view-triggers-event-object)
 * [Model and Collection Events](#model-and-collection-events)
   * [Model Events](#model-events)
     * [Function Callback](#function-callback)
@@ -113,13 +114,22 @@ Marionette will [set the appropriate state of the view](./viewlifecycle.md#views
 
 ### Setting a `template` to `false`
 
-Setting the `template` to `false` allows for the view to create all of the bindings and trigger all view events without re-rendering the el of the view. *Any other falsy value will throw an exception.*
+**Deprecated:** `template: false` is deprecated.  Use `template: _.noop`
+to render without adding html, or do not render the view. Pre-rendered
+views will instantiate `isRendered() === true`.
+
+Setting the `template` to `false` allows for the view to create all of
+the bindings and trigger all view events without re-rendering the el of
+the view. *Any other falsy value will throw an exception.*
 
 ```javascript
 var Mn = require('backbone.marionette');
 
 var MyView = Mn.View({
   el: '#base-element',
+
+  // template: false is deprecated
+  // Use template: _.noop instead
   template: false
 });
 
@@ -179,8 +189,10 @@ syntax will suffice.
 
 ### Managing Sub-views
 
-`View` provides a simple interface for managing sub-views with `showChildView`
-and `getChildView`:
+`View` provides a simple interface for managing sub-views with
+[`showChildView`](#showing-a-view) and [`getChildView`](#accessing-a-child-view).
+We will cover both here but for more advanced information, see the
+[documentation for regions](./marionette.region.md).
 
 #### Showing a View
 
@@ -203,6 +215,8 @@ var MyView = Mn.View.extend({
   }
 });
 ```
+
+Note: If `view.showChildView(region, subView)` is invoked before the `view` has been rendered, it will automatically render the `view` so the region's `el` exists in the DOM.
 
 [Live example](https://jsfiddle.net/marionettejs/98u073m0/)
 
@@ -579,7 +593,7 @@ var MyView = Mn.View.extend({
     'click a': 'link:clicked'
   },
 
-  onLinkClicked: function() {
+  onLinkClicked: function(view, event) {
     console.log('Show the modal');
   }
 });
@@ -596,6 +610,32 @@ The major benefit of the `triggers` attribute over `events` is that triggered
 events can bubble up to any parent views. For a full explanation of bubbling
 events and listening to child events, see the
 [event bubbling documentation](./events.md#child-view-events).
+
+#### View `triggers` Event Object
+
+Event handlers will receive the triggering view as the first argument and the
+DOM Event object as the second. It is _strongly recommended_ that View's handle
+their own DOM event objects. It should be considered a best practice to not
+utilize the DOM event in external listeners.
+
+By default all trigger events are stopped with `preventDefault` and
+`stopPropagation` methods, but you can manually configure the triggers using
+a hash instead of event name. The example below triggers an event and prevents
+default browser behaviour using `preventDefault` method.
+
+```js
+var MyView = Mn.View.extend({
+  triggers: {
+    'click a': {
+      event: 'link:clicked',
+      preventDefault: true, // this param is optional and will default to true
+      stopPropagation: false
+    }
+  }
+});
+```
+
+The default behavior for calling `preventDefault` can be changed with the feature flag [`triggersPreventDefault`](./marionette.features.md#triggerspreventdefault), and `stopPropagation` can be changed with the feature flag [`triggersStopPropagation`](./marionette.features.md#triggersstoppropagation).
 
 ## Model and Collection events
 
@@ -682,7 +722,7 @@ var MyView = Mn.View.extend({
       console.log('the collection was updated');
     }
   }
-})
+});
 ```
 
 [Live example](https://jsfiddle.net/marionettejs/ze8po0x5/)
@@ -711,9 +751,30 @@ var MyView = Mn.View.extend({
   modelsChanged: function() {
     console.log('models were added or removed in the collection');
   }
-})
+});
 ```
 
 [Live example](https://jsfiddle.net/marionettejs/h9ub5hp3/)
 
 In this case, Marionette will bind event handlers to both.
+
+#### Destroying a View
+
+It's possible to manually destroy a view by calling the `destroy` method.
+The method unbinds the UI elements, removes the view and its children from
+the DOM and unbinds the listeners. It also triggers
+[lifecycle events](viewlifecycle.md#view-destruction-lifecycle). It can be
+useful in non-isolated test environments.
+
+```javascript
+var Mn = require('backbone.marionette');
+
+var MyView = Mn.View.extend({
+  onDestroy: function() {
+    console.log("Fired whenever view.destroy() is called.");
+  },
+});
+
+var myView = new MyView();
+myView.destroy();
+```

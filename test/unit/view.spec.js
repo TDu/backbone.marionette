@@ -76,6 +76,26 @@ describe('item view', function() {
       this.view.render();
     });
 
+    describe('when DEV_MODE is true', function() {
+      beforeEach(function() {
+        Marionette.DEV_MODE = true;
+        this.sinon.spy(Marionette.deprecate, '_warn');
+        this.sinon.stub(Marionette.deprecate, '_console', {
+          warn: this.sinon.stub()
+        });
+        Marionette.deprecate._cache = {};
+      });
+
+      it('should call Marionette.deprecate', function() {
+        this.view.render();
+        expect(Marionette.deprecate._warn).to.be.calledWith('Deprecation warning: template:false is deprecated.  Use _.noop.');
+      });
+
+      afterEach(function() {
+        Marionette.DEV_MODE = false;
+      });
+    });
+
     it('should not throw an exception for a false template', function() {
       expect(this.view.render).to.not.throw('Cannot render the template since it is null or undefined.');
     });
@@ -283,7 +303,7 @@ describe('item view', function() {
       this.view = new this.View();
       this.view.render();
 
-      this.removeSpy = this.sinon.spy(this.view, '_removeElement');
+      this.removeSpy = this.sinon.spy(this.view, 'removeEl');
       this.stopListeningSpy = this.sinon.spy(this.view, 'stopListening');
       this.triggerSpy = this.sinon.spy(this.view, 'trigger');
 
@@ -383,6 +403,18 @@ describe('item view', function() {
     });
   });
 
+  describe('when instantiating a View', function() {
+    it('should trigger `initialize` on the behaviors', function() {
+      this.sinon.stub(Marionette.View.prototype, '_triggerEventOnBehaviors');
+
+      const myView = new Marionette.View();
+
+      // _triggerEventOnBehaviors comes from Behaviors mixin
+      expect(myView._triggerEventOnBehaviors)
+        .to.be.calledOnce.and.calledWith('initialize', myView);
+    });
+  });
+
   describe('when serializing view data', function() {
     beforeEach(function() {
       this.modelData = {foo: 'bar'};
@@ -395,6 +427,7 @@ describe('item view', function() {
 
     it('should return an empty object without data', function() {
       expect(this.itemView.serializeData()).to.deep.equal({});
+      expect(this.itemView.serializeCollection()).to.deep.equal({});
     });
 
     describe('and the view has a model', function() {

@@ -206,7 +206,7 @@ describe('layoutView', function() {
       this.regionTwo = this.layoutViewManager.getRegion('regionTwo');
 
       var View = Marionette.View.extend({
-        template: false,
+        template: _.noop,
         destroy: function() {
           this.hadParent = this.$el.closest('#parent').length > 0;
           return View.__super__.destroy.call(this);
@@ -287,18 +287,23 @@ describe('layoutView', function() {
   describe('when showing a childView as a View', function() {
     beforeEach(function() {
       this.layoutView = new this.View();
-      this.childEventsHandler = this.sinon.spy();
+      this.childEventsHandlerTrigger = this.sinon.spy();
+      this.childEventsHandlerTriggerMethod = this.sinon.spy();
 
       // add child events to listen for
       this.layoutView.childViewEvents = {
-        'content:rendered': this.childEventsHandler
+        'before:content:rendered': this.childEventsHandlerTrigger,
+        'content:rendered': this.childEventsHandlerTriggerMethod
       };
       this.layoutView.delegateEvents();
       this.layoutView.render();
 
       // create a child view which triggers an event on render
       var ChildView = Marionette.View.extend({
-        template: false,
+        template: _.noop,
+        onBeforeRender: function() {
+          this.trigger('before:content:rendered');
+        },
         onRender: function() {
           this.triggerMethod('content:rendered');
         }
@@ -313,7 +318,11 @@ describe('layoutView', function() {
     });
 
     it('childViewEvents are triggered', function() {
-      expect(this.childEventsHandler).to.have.been.calledOnce;
+      expect(this.childEventsHandlerTrigger).to.have.been.calledOnce;
+    });
+
+    it('childViewEvents are triggered', function() {
+      expect(this.childEventsHandlerTriggerMethod).to.have.been.calledOnce;
     });
 
     describe('and the view is detached', function() {
@@ -377,7 +386,7 @@ describe('layoutView', function() {
 
       // create a child view which triggers an event on render
       var ChildView = Marionette.View.extend({
-        template: false
+        template: _.noop
       });
       this.childView = new ChildView();
 
@@ -387,6 +396,34 @@ describe('layoutView', function() {
 
     it('childViewEvents "destroy" method is triggered', function() {
       expect(this.childEventsHandler).to.have.been.calledOnce;
+    });
+  });
+
+  describe('when destroying the childView destroys the parent', function() {
+    let layoutView;
+
+    beforeEach(function() {
+      const LayoutView = Marionette.View.extend({
+        childViewEvents: {
+          'destroy': 'destroy'
+        },
+        template: _.template('<div id="regionOne"></div>'),
+        regions: {
+          regionOne: '#regionOne'
+        }
+      });
+
+      layoutView = new LayoutView();
+
+      const childView = new Marionette.View({
+        template: _.noop
+      });
+
+      layoutView.showChildView('regionOne', childView);
+    });
+
+    it('should not throw any errors', function() {
+      expect(function() { layoutView.destroy(); }).to.not.throw(Error);
     });
   });
 
@@ -403,9 +440,9 @@ describe('layoutView', function() {
       this.layoutView = new this.ViewBoundRender({
         model: new Backbone.Model()
       });
-      this.sinon.spy(this.layoutView.getRegion('regionOne'), 'empty');
       this.layoutView.render();
 
+      this.sinon.spy(this.layoutView.getRegion('regionOne'), 'empty');
       this.view = new Backbone.View();
       this.view.destroy = function() {};
       this.layoutView.getRegion('regionOne').show(this.view);
@@ -444,30 +481,6 @@ describe('layoutView', function() {
       it('should re-bind the regions correctly', function() {
         expect(this.layoutView.$('#regionOne')).not.to.equal();
       });
-    });
-  });
-
-  describe('when re-rendering a destroyed layoutView', function() {
-    beforeEach(function() {
-      this.layoutView = new this.View();
-      this.layoutView.render();
-      this.region = this.layoutView.getRegion('regionOne');
-
-      this.view = new Backbone.View();
-      this.view.destroy = function() {};
-      this.layoutView.getRegion('regionOne').show(this.view);
-      this.layoutView.destroy();
-
-      this.sinon.spy(this.region, 'empty');
-      this.sinon.spy(this.view, 'destroy');
-
-      this.layoutView.onBeforeRender = this.sinon.stub();
-      this.layoutView.onRender = this.sinon.stub();
-    });
-
-    it('should throw an error', function() {
-      expect(this.layoutView.render).to.throw('View (cid: "' + this.layoutView.cid +
-          '") has already been destroyed and cannot be used.');
     });
   });
 
@@ -624,13 +637,19 @@ describe('layoutView', function() {
   describe('when a layout has regions', function() {
     beforeEach(function() {
       this.layout = new this.View();
-      this.layout.render();
-      this.regions = this.layout.getRegions();
     });
 
     it('should be able to retrieve all regions', function() {
+      this.layout.render();
+      this.regions = this.layout.getRegions();
       expect(this.regions.regionOne).to.equal(this.layout.getRegion('regionOne'));
       expect(this.regions.regionTwo).to.equal(this.layout.getRegion('regionTwo'));
+    });
+
+    it('should render the view if it hasn\'t been yet', function() {
+      this.sinon.spy(this.layout, 'render');
+      this.layout.getRegions();
+      expect(this.layout.render).to.be.calledOnce;
     });
 
     describe('when the regions are specified via regions hash and the view has no template', function() {
@@ -643,9 +662,11 @@ describe('layoutView', function() {
             '</div>' +
           '</div>';
         this.setFixtures(fixture);
+        this.layout.render();
+        this.regions = this.layout.getRegions();
         this.View = Backbone.Marionette.View.extend({
           el: '.region-hash-no-template-spec .some-layout-view',
-          template: false,
+          template: _.noop,
           regions: {
             regionOne: '.region-one'
           }
@@ -672,7 +693,7 @@ describe('layoutView', function() {
       this.removeRegionSpy = this.sinon.spy();
 
       this.Layout = Marionette.View.extend({
-        template: false,
+        template: _.noop,
         onBeforeAddRegion: this.beforeAddRegionSpy,
         onAddRegion: this.addRegionSpy,
         onBeforeRemoveRegion: this.beforeRegionRemoveSpy,
